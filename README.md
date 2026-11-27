@@ -22,6 +22,24 @@ Au premier lancement, la base est créée et remplie avec un **jeu de données d
 
 ## 2. Compilation en exécutable autonome
 
+### Compilation automatique sur GitHub (recommandé)
+Le fichier `.github/workflows/build.yml` compile l'application sur les serveurs de GitHub,
+sous Windows et sous macOS, sans rien installer sur votre ordinateur :
+
+- **À chaque envoi sur `main`** : onglet **Actions** → dernière exécution « Compilation des exécutables »
+  → section **Artifacts** : `GestionProduction-Windows` (contient le `.exe`) et `GestionProduction-macOS`
+  (contient le `.app`). Conservés 30 jours.
+- **À la demande** : onglet **Actions** → « Compilation des exécutables » → bouton **Run workflow**.
+- **Version officielle** : créez un tag commençant par `v` (ex. `v1.0.0`, via **Releases → Draft a new release**
+  ou `git tag v1.0.0 && git push --tags`). Les deux exécutables sont alors joints automatiquement
+  à la page **Releases**, en téléchargement direct.
+
+L'app macOS est compilée pour les Mac Apple Silicon (M1 et suivants). Les exécutables ne sont pas signés :
+première ouverture sous Windows → « Informations complémentaires » → « Exécuter quand même » ;
+sous macOS → clic droit sur l'app → « Ouvrir ».
+
+### Compilation manuelle
+
 > Les icônes `assets/icon.png` / `icon.ico` sont générées automatiquement par les scripts de build. En cas de compilation manuelle, lancez d'abord `python assets/make_icon.py`.
 
 > PyInstaller ne fait pas de compilation croisée : on compile le `.exe` **sur Windows** et le `.app` **sur macOS**.
