@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.venv/
+build/
+dist/
+*.db
+*.log
+assets/icon.png
+assets/icon.ico
+.DS_Store
