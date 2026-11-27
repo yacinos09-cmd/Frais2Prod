@@ -1,0 +1,126 @@
+# Compilation automatique de l'application (Windows .exe + macOS .app)
+#
+# - À chaque push sur main : compile et met les exécutables à disposition
+#   dans l'onglet « Actions » (section « Artifacts » de l'exécution).
+# - Bouton « Run workflow » dans l'onglet Actions : compilation à la demande.
+# - À chaque tag v* (ex. : v1.0.0) : compile ET publie une page « Releases »
+#   avec les exécutables en téléchargement direct.
+
+name: Compilation des exécutables
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Compilation ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            label: Windows
+          - os: macos-latest
+            label: macOS
+
+    steps:
+      - name: Récupération du code
+        uses: actions/checkout@v4
+
+      - name: Installation de Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Installation des dépendances
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Génération des icônes
+        run: python assets/make_icon.py
+
+      - name: Vérification rapide (imports et génération PDF)
+        env:
+          QT_QPA_PLATFORM: offscreen
+          GESTION_PROD_DB: ci_test.db
+        run: >
+          python -c "import ui_main, pdf_generator;
+          from database import Database;
+          db = Database('ci_test.db'); db.load_demo_data();
+          pdf_generator.generate_global_pdf('ci_test.pdf', db.worker_earnings_report(),
+          'Test', '', 'FDJ', 'Tous les projets'); print('OK')"
+
+      # ---------------- Windows ----------------
+      - name: Compilation PyInstaller (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: >
+          pyinstaller --noconfirm --clean --onefile --windowed
+          --name GestionProduction
+          --icon assets/icon.ico
+          --add-data "assets;assets"
+          --hidden-import platformdirs
+          --exclude-module tkinter
+          main.py
+
+      - name: Préparation de l'archive (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Compress-Archive -Path dist/GestionProduction.exe -DestinationPath GestionProduction-Windows.zip
+
+      # ---------------- macOS ----------------
+      - name: Compilation PyInstaller (macOS)
+        if: runner.os == 'macOS'
+        run: >
+          pyinstaller --noconfirm --clean --windowed
+          --name GestionProduction
+          --icon assets/icon.png
+          --osx-bundle-identifier com.studioprod.gestionproduction
+          --add-data "assets:assets"
+          --hidden-import platformdirs
+          --exclude-module tkinter
+          main.py
+
+      - name: Préparation de l'archive (macOS)
+        if: runner.os == 'macOS'
+        run: ditto -c -k --keepParent dist/GestionProduction.app GestionProduction-macOS.zip
+
+      # ---------------- Mise à disposition ----------------
+      - name: Envoi de l'exécutable (onglet Actions)
+        uses: actions/upload-artifact@v4
+        with:
+          name: GestionProduction-${{ matrix.label }}
+          path: GestionProduction-${{ matrix.label }}.zip
+          retention-days: 30
+
+  release:
+    name: Publication de la version
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Récupération des exécutables
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Création de la page Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Gestion de Production ${{ github.ref_name }}
+          generate_release_notes: true
+          files: |
+            dist/GestionProduction-Windows.zip
+            dist/GestionProduction-macOS.zip
